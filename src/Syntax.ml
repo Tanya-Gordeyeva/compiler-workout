@@ -41,7 +41,31 @@ module Expr =
        Takes a state and an expression, and returns the value of the expression in 
        the given state.
     *)
-    let eval _ = failwith "Not implemented yet"
+    let int_val op l r= if (op l r) then 1 else 0;;
+    let bool_val v = v<>0;;
+    let disj_conj op = fun l r -> int_val op (bool_val l) (bool_val r);;
+
+    let eval_operation oper = match oper with
+      | "+" -> ( + )
+      | "-" -> ( - )
+      | "*" -> ( * )
+      | "/" -> ( / )
+      | "%" -> ( mod )
+      | "!!" -> disj_conj( || )
+      | "&&" -> disj_conj( && )
+      | "==" -> int_val( = )
+      | "!=" -> int_val( <> )
+      | "<=" -> int_val( <= )
+      | "<" -> int_val( < )
+      | ">=" -> int_val( >= )
+      |  ">" -> int_val( > );;
+
+
+    let rec eval state expr = match expr with
+      | Const n -> n
+      | Var x -> state x
+      | Binop (oper, left, right) -> 
+          eval_operation oper (eval state left) (eval state right);;
 
   end
                     
@@ -65,7 +89,16 @@ module Stmt =
 
        Takes a configuration and a statement, and returns another configuration
     *)
-    let eval _ = failwith "Not implemented yet"
+    let rec eval config statement =
+      let (state, input, output) = conf in
+      match statement with
+        | Read x -> (match input with
+                      | head::tail -> (Expr.update x head state), tail, output)
+        | Write expr -> (state, input, output @ [Expr.eval state expr])
+        | Assign (x, expr) -> (Expr.update x (Expr.eval state expr) state, input, output)
+        | Seq (st1, st2) -> 
+            let st = eval conf st1
+            in eval st st2;; 
                                                          
   end
 
