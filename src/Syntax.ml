@@ -45,7 +45,7 @@ module Expr =
     let bool_val v = v<>0;;
     let disj_conj op = fun l r -> int_val op (bool_val l) (bool_val r);;
 
-    let eval_operation oper = match oper with
+    let operator oper = match oper with
       | "+" -> ( + )
       | "-" -> ( - )
       | "*" -> ( * )
@@ -65,7 +65,7 @@ module Expr =
       | Const n -> n
       | Var x -> state x
       | Binop (oper, left, right) -> 
-          eval_operation oper (eval state left) (eval state right);;
+          operator oper (eval state left) (eval state right);;
 
   end
                     

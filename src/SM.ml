@@ -30,12 +30,12 @@ type config = int list * Syntax.Stmt.config
 	      | ST var   -> (match stack with
                         | x::rest -> rest, (Syntax.Expr.update var x st, input, output))
         | LD var   -> [st var] @ stack, f
-        | BINOP op -> (match stack with
-	                      | y::x::rest -> [Syntax.Expr.action op x y] @ rest, f)
 	      | READ     -> (match input with
 		                    | x::rest -> [x] @ stack, (st, rest, output))
 	      | WRITE    -> (match stack with
-		                    | x::rest -> rest, (st, input, output @ [x]))
+                        | x::rest -> rest, (st, input, output @ [x]))
+        | BINOP operator -> (match stack with
+                        | y::x::rest -> [Syntax.Expr.operator operator x y] @ rest, f)
 	      | CONST x  -> [x] @ stack, f
   let eval config prog = List.fold_left instruct config prog;;
 
@@ -57,7 +57,7 @@ let run i p = let (_, (_, _, o)) = eval ([], (Syntax.Expr.empty, i, [])) p in o
 
  let rec comp_expr exp = match exp with  
     | Syntax.Expr.Var x                   -> [LD x]
-    | Syntax.Expr.Binop (op, left, right) -> (comp_expr left) @ (comp_expr right) @ [BINOP op]
+    | Syntax.Expr.Binop (operator, left, right) -> (comp_expr left) @ (comp_expr right) @ [BINOP operator]
     | Syntax.Expr.Const x                 -> [CONST x];;
 
 
