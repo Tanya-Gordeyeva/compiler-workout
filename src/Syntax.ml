@@ -89,7 +89,7 @@ module Stmt =
 
        Takes a configuration and a statement, and returns another configuration
     *)
-    let rec eval config statement =
+    let rec eval conf statement =
       let (state, input, output) = conf in
       match statement with
         | Read x -> (match input with
