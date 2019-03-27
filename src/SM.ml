@@ -42,9 +42,21 @@ let instruct config evt =
       | BINOP operator -> (match stack with
                       | y::x::rest -> [Language.Expr.operator operator x y] @ rest, f)
       | CONST x  -> [x] @ stack, f
+      | LABEL l  ->  (stack, (st, input, output))
 
-
-let eval config prog = List.fold_left instruct config prog
+let rec eval env cfg p = match p with
+| instr::tail -> (match instr with
+  | LABEL l        -> eval env cfg tail
+  | JMP l          -> eval env cfg (env#labeled l)
+  | CJMP (znz, l)  -> (let (st, rem) = cfg in match znz with
+                        | "nz" -> (match st with
+                                  | z::st' -> if Language.Expr.bool_val z then (eval env (st', rem) (env#labeled l)) else (eval env (st', rem) tail)
+                                  | []     -> failwith "CJMP with empty stack")
+                        | "z"  -> (match st with
+                                  | z::st' -> if Language.Expr.bool_val z then (eval env (st', rem) tail) else (eval env (st', rem) (env#labeled l))
+                                  | []     -> failwith "CJMP with empty stack"))
+  | _              -> eval env (instruct cfg instr) tail)
+| []          -> cfg
 
 (* Top-level evaluation
 
@@ -69,4 +81,44 @@ let run p i =
    Takes a program in the source language and returns an equivalent program for the
    stack machine
 *)
-let compile p = failwith "Not yet implemented"
+
+let labelGen = object
+   val mutable fLabel = 0
+   method getLabel = fLabel <- fLabel + 1; "label" ^ string_of_int fLabel
+end
+
+ let rec compileWithLabels p lastL =
+  let rec expr = function
+  | Expr.Var   x          -> [LD x]
+  | Expr.Const n          -> [CONST n]
+  | Expr.Binop (op, x, y) -> expr x @ expr y @ [BINOP op]
+  in match p with
+  | Stmt.Seq (s1, s2)  -> (let newLabel = labelGen#getLabel in
+                           let (compiled1, used1) = compileWithLabels s1 newLabel in
+                           let (compiled2, used2) = compileWithLabels s2 lastL in
+                           (compiled1 @ (if used1 then [LABEL newLabel] else []) @ compiled2), used2)
+  | Stmt.Read x        -> [READ; ST x], false
+  | Stmt.Write e       -> (expr e @ [WRITE]), false
+  | Stmt.Assign (x, e) -> (expr e @ [ST x]), false
+  | Stmt.If (e, s1, s2) ->
+    let lElse = labelGen#getLabel in
+    let (compiledS1, used1) = compileWithLabels s1 lastL in
+    let (compiledS2, used2) = compileWithLabels s2 lastL in
+    (expr e @ [CJMP ("z", lElse)]
+    @ compiledS1 @ (if used1 then [] else [JMP lastL]) @ [LABEL lElse]
+    @ compiledS2 @ (if used2 then [] else [JMP lastL])), true
+  | Stmt.While (e, body) ->
+    let lCheck = labelGen#getLabel in
+    let lLoop = labelGen#getLabel in
+    let (doBody, _) = compileWithLabels body lCheck in
+    ([JMP lCheck; LABEL lLoop] @ doBody @ [LABEL lCheck] @ expr e @ [CJMP ("nz", lLoop)]), false
+  | Stmt.RepeatUntil (body, e) ->
+    let lLoop = labelGen#getLabel in
+    let (repeatBody, _) = compileWithLabels body lastL in
+    ([LABEL lLoop] @ repeatBody @ expr e @ [CJMP ("z", lLoop)]), false
+  | Stmt.Skip -> [], false
+
+ let rec compile p =
+  let label = labelGen#getLabel in
+  let compiled, used = compileWithLabels p label in
+  compiled @ (if used then [LABEL label] else []) 

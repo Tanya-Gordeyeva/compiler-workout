@@ -4,7 +4,7 @@
 open GT
 
 (* Opening a library for combinator-based syntax analysis *)
-open Ostap.Combinators
+open Ostap
        
 (* Simple expressions: syntax and semantics *)
 module Expr =
@@ -113,7 +113,7 @@ module Stmt =
     (* empty statement                  *) | Skip
     (* conditional                      *) | If     of Expr.t * t * t
     (* loop with a pre-condition        *) | While  of Expr.t * t
-    (* loop with a post-condition       *) (* add yourself *)  with show
+    (* loop with a post-condition       *) |RepeatUntil of t * Expr.t  with show
                                                                     
     (* The type of configuration: a state, an input stream, an output stream *)
     type config = Expr.state * int list * int list 
@@ -134,15 +134,47 @@ module Stmt =
         | Seq (st1, st2) -> 
             let st = eval conf st1
             in eval st st2
+        | If (e, thS, eS) -> eval (state, input, output) (if Expr.bool_val (Expr.eval state e) then thS else eS)
+        | While (e, wS) -> if Expr.bool_val (Expr.eval state e) then eval (eval (state, input, output) wS) statement else (state, input, output)
+        | RepeatUntil (rS, e) -> 
+          let (sN, iN, oN) = eval (state, input, output) rS in
+                       if not (Expr.bool_val (Expr.eval sN e)) then eval (sN, iN, oN) statement else (sN, iN, oN)
+        | Skip -> (state, input, output)
                                
     (* Statement parser *)
-    
+
     ostap (
-      parse: empty {failwith "Not yet implemented"}
-      stmt:
-			x:IDENT ":=" e:!(Expr.expr) {Assign(x, e)}
+      simple:
+			  x:IDENT ":=" e:!(Expr.expr) {Assign(x, e)}
 			  | "read" "(" x:IDENT ")" {Read x}
-			  | "write" "(" e:!(Expr.expr) ")" {Write e};
+        | "write" "(" e:!(Expr.expr) ")" {Write e};
+      ifStmt:
+        "if" e:!(Expr.expr) "then" thenBody:parse
+      elifBranches: (%"elif" elifE:!(Expr.expr) %"then" elifBody:!(parse))*
+      elseBranch: (%"else" elseBody:!(parse))?
+        "fi" {
+           let elseBranch' = match elseBranch with
+             | Some x -> x
+                 | None   -> Skip in
+           let expandedElseBody = List.fold_right (fun (e', body') else' -> If (e', body', else')) elifBranches elseBranch' in
+           If (e, thenBody, expandedElseBody)
+         };
+      whileStmt:
+        "while" e:!(Expr.expr) "do" body:parse "od" {While (e, body)};
+      forStmt:
+        "for" initStmt:stmt "," whileCond:!(Expr.expr) "," forStmt:stmt
+        "do" body:parse "od" {Seq (initStmt, While (whileCond, Seq (body, forStmt)))};
+      repeatUntilStmt:
+        "repeat" body:parse "until" e:!(Expr.expr) {RepeatUntil (body, e)};
+      control:
+          ifStmt
+        | whileStmt
+        | forStmt
+        | repeatUntilStmt
+        | "skip" {Skip};
+      stmt:
+          simple
+        | control;
   		parse: s:stmt ";" rest:parse {Seq(s, rest)} | stmt
     )
       
