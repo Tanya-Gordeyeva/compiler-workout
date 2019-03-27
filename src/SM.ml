@@ -28,7 +28,23 @@ type config = int list * Stmt.config
    Takes an environment, a configuration and a program, and returns a configuration as a result. The
    environment is used to locate a label to jump to (via method env#labeled <label_name>)
 *)                         
-let rec eval env conf prog = failwith "Not yet implemented"
+let instruct config evt =
+  let (stack, f) = config in
+  let (st, input, output) = f in
+    match evt with
+      | ST var   -> (match stack with
+                      | x::rest -> rest, (Language.Expr.update var x st, input, output))
+      | LD var   -> [st var] @ stack, f
+      | READ     -> (match input with
+                      | x::rest -> [x] @ stack, (st, rest, output))
+      | WRITE    -> (match stack with
+                      | x::rest -> rest, (st, input, output @ [x]))
+      | BINOP operator -> (match stack with
+                      | y::x::rest -> [Language.Expr.operator operator x y] @ rest, f)
+      | CONST x  -> [x] @ stack, f
+
+
+let eval config prog = List.fold_left instruct config prog
 
 (* Top-level evaluation
 
