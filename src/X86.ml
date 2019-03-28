@@ -102,8 +102,9 @@ let rec compile env scode = match scode with
         env, [Push s; 
               Call "Lwrite"; 
               Pop eax]
-	    | LD x ->
-	      let s, (match s with 
+      | LD x ->
+        let s, env = (env#global x)#allocate in
+	      let env, (match s with 
         | S _ -> [Mov (M (env#loc x), eax); 
                   Mov (eax, s)] 
         | _   -> [Mov (M (env#loc x), s)])
