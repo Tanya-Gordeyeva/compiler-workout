@@ -40,7 +40,7 @@ let instruct config evt =
       | WRITE    -> (match stack with
                       | x::rest -> rest, (st, input, output @ [x]))
       | BINOP operator -> (match stack with
-                      | y::x::rest -> [Language.Expr.operator operator x y] @ rest, f)
+                      | y::x::rest -> [(Language.Expr.operator operator) x y] @ rest, f)
       | CONST x  -> [x] @ stack, f
       | LABEL l  ->  (stack, (st, input, output))
 
@@ -84,7 +84,7 @@ let run p i =
 
 let labelGen = object
    val mutable fLabel = 0
-   method getLabel = fLabel <- fLabel + 1; "label" ^ string_of_int fLabel
+   method getLabel = fLabel <- fLabel + 1; "L" ^ string_of_int fLabel
 end
 
  let rec compileWithLabels p lastL =
