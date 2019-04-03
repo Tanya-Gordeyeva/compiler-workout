@@ -74,7 +74,7 @@ module Expr =
        which takes an environment (of the same type), a name of the function, a list of actual parameters and a configuration, 
        an returns resulting configuration
     *)                                                       
-    let rec eval env ((st, i, o, r) as conf) expr = failwith "Not implemented"
+
     let to_func op =
       let bti   = function true -> 1 | _ -> 0 in
       let itb b = b <> 0 in
@@ -99,10 +99,10 @@ module Expr =
       match expr with
       | Const c -> (st, i, o, Some c)
       | Var v -> (st, i, o, Some (State.eval st v))
-      | Binop (op, l, r) ->
-         let ((_, _, _, Some a) as new_conf) = eval env conf l in
-         let (st', i', o', Some b) = eval env new_conf r in
-         (st', i', o', Some (eval_binop op a b))
+      | Binop (op, x, y) ->
+        let (st, i, o, Some r1) = eval env conf x in
+        let (st, i, o, Some r2) = eval env (st, i, o, None) y in
+        (st, i, o, Some to_func op r1 r2)
       | Call (fun_name, fun_args) ->
          let eval_args (conf, acc) arg =
            let ((_, _, _, Some v) as new_conf) = eval env conf arg in
