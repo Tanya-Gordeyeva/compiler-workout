@@ -130,6 +130,7 @@ module Expr =
               `Lefta, ["+"; "-"];
               `Lefta, ["*"; "/"; "%"];
             |]
+            )
             primary
           );
       primary: n:DECIMAL { Const n } 
