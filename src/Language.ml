@@ -188,7 +188,7 @@ module Stmt =
           eval env conf (meta k st2) st1
         | If (e, thS, eS) -> 
           let (new_state, new_input, new_output, Some n) = Expr.eval env conf e in
-          eval env (ew_state, new_input, new_output, r) k (if n != 0 then thS else eS)
+          eval env (new_state, new_input, new_output, r) k (if n != 0 then thS else eS)
         | While (e, wS) -> 
           let (((new_state, new_input, new_output, r) as new_conf), Some n) = Expr.eval env conf e in
           if n != 0 then eval env new_conf (meta k statement) wS else eval env new_conf Skip k
