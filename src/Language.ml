@@ -153,7 +153,7 @@ module Stmt =
     (* empty statement                  *) | Skip
     (* conditional                      *) | If     of Expr.t * t * t
     (* loop with a pre-condition        *) | While  of Expr.t * t
-    (* loop with a post-condition       *) | Repeat of t * Expr.t
+    (* loop with a post-condition       *) | Repeat of Expr.t * t
     (* return statement                 *) | Return of Expr.t option
     (* call a procedure                 *) | Call   of string * Expr.t list with show
                                                                     
@@ -189,9 +189,10 @@ module Stmt =
         | If (e, thS, eS) -> 
           let (new_state, new_input, new_output, Some n) = Expr.eval env conf e in
           eval env (new_state, new_input, new_output, r) k (if n != 0 then thS else eS)
-        | While (e, wS) -> 
-          let (((new_state, new_input, new_output, r) as new_conf), Some n) = Expr.eval env conf e in
-          if n != 0 then eval env new_conf (meta k statement) wS else eval env new_conf Skip k
+        |  While (e, s) ->
+          let (new_state, new_input, new_output, Some n) = Expr.eval env conf e in
+          let new_conf = (new_state, new_input, new_output, r) in
+          if n != 0 then eval env new_conf (meta k statement) s else eval env new_conf Skip k
         | Repeat (rS, e) -> 
           eval env conf (meta k (While (Expr.Binop ("==", rS, Expr.Const 0), e))) e
         | Skip -> 
