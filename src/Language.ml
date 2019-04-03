@@ -179,10 +179,10 @@ module Stmt =
                       | _ -> failwith "cannot perform")
         end
         | Write expr -> 
-          let (new_state, new_input, new_output, Some n) = Expr.eval env conf e in
+          let (new_state, new_input, new_output, Some n) = Expr.eval env conf expr in
           eval env (new_state, new_input, new_output @ [n], r) Skip k
         | Assign (x, expr) -> 
-          let (new_state, new_input, new_output, Some n) = Expr.eval env conf e in
+          let (new_state, new_input, new_output, Some n) = Expr.eval env conf expr in
           eval env (State.update x n new_state, new_input, new_output, r) Skip k
         | Seq (st1, st2) -> 
           eval env conf (meta k st2) st1
