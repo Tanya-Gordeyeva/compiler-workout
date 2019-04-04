@@ -40,7 +40,7 @@ let rec eval env ((cstack, stack, ((st, i, o) as c)) as conf) = function
         begin
           match stack with
           | y :: x :: tail ->
-             eval env (cstack, (Expr.eval_binop op x y) :: tail, c) prog_tail
+             eval env (cstack, (Expr.to_func op x y) :: tail, c) prog_tail
           | _ -> failwith "cannot perform BINOP"
         end
      | CONST v -> eval env (cstack, v :: stack, c) prog_tail
@@ -123,7 +123,7 @@ let rec c_expr expr =
 
 let rec c_stm stm =
   match stm with
-  | Stmt.Assign (x, e) -> (ce_expr e) @ [ST x]
+  | Stmt.Assign (x, e) -> (c_expr e) @ [ST x]
   | Stmt.Read x -> [READ] @ [ST x]
   | Stmt.Write e -> (c_expr e) @ [WRITE]
   | Stmt.Seq (s1, s2) -> (c_stm s1) @ (c_stm s2)
@@ -131,15 +131,15 @@ let rec c_stm stm =
   | Stmt.Call (name, args) ->
     List.concat (List.map c_expr (List.rev args)) @ [CALL (name, List.length args, false)]
   | Stmt.If (e, s1, s2) ->
-     let l_else = label_generator#generate in
-     let l_fi = label_generator#generate in
+     let l_else = label_generator#getLabel in
+     let l_fi = label_generator#getLabel in
      (c_expr e) @ [CJMP ("z", l_else)] @ (c_stm s1) @ [JMP l_fi; LABEL l_else] @ (c_stm s2) @ [LABEL l_fi]
   | Stmt.While (e, s) ->
-     let l_expr = label_generator#generate in
-     let l_od = label_generator#generate in
+     let l_expr = label_generator#getLabel in
+     let l_od = label_generator#getLabel in
      [LABEL l_expr] @ (c_expr e) @ [CJMP ("z", l_od)] @ (c_stm s) @ [JMP l_expr; LABEL l_od]
   | Stmt.Repeat (e, s) ->
-     let l_repeat = label_generator#generate in
+     let l_repeat = label_generator#getLabel in
      [LABEL l_repeat] @ (c_stm s) @ (c_expr e) @ [CJMP ("z", l_repeat)]
   | Stmt.Return opt_res ->
      begin
@@ -152,4 +152,4 @@ let rec compile_def (name, (params, locals, body)) =
   [LABEL name; BEGIN (name, params, locals)] @ c_stm body @ [END]
 
 let compile (defs, p) =
-  co_stm p @ [END] @ List.concat (List.map compile_def defs)
+  c_stm p @ [END] @ List.concat (List.map compile_def defs)
