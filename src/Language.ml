@@ -29,8 +29,13 @@ module Value =
     let of_string s = String s
     let of_array  a = Array  a
 
+    let rec list_init iter n f =
+      if iter < n
+      then (f iter) :: (list_init (iter + 1) n f)
+      else []
+
     let update_string s i x = String.init (String.length s) (fun j -> if j = i then x else s.[j])
-    let update_array  a i x = List.init   (List.length a)   (fun j -> if j = i then x else List.nth a j)
+    let update_array  a i x = list_init 0  (List.length a)   (fun j -> if j = i then x else List.nth a j)
 
   end
        
@@ -126,8 +131,50 @@ module Expr =
 
        which takes an environment (of the same type), a name of the function, a list of actual parameters and a configuration, 
        an returns a pair: the return value for the call and the resulting configuration
-    *)                                                       
-    let rec eval env ((st, i, o, r) as conf) expr = failwith "Not implemented"
+    *)               
+    let to_func op =
+      let bti   = function true -> 1 | _ -> 0 in
+      let itb b = b <> 0 in
+      let (|>) f g   = fun x y -> f (g x y) in
+      match op with
+      | "+"  -> (+)
+      | "-"  -> (-)
+      | "*"  -> ( * )
+      | "/"  -> (/)
+      | "%"  -> (mod)
+      | "<"  -> bti |> (< )
+      | "<=" -> bti |> (<=)
+      | ">"  -> bti |> (> )
+      | ">=" -> bti |> (>=)
+      | "==" -> bti |> (= )
+      | "!=" -> bti |> (<>)
+      | "&&" -> fun x y -> bti (itb x && itb y)
+      | "!!" -> fun x y -> bti (itb x || itb y)
+      | _    -> failwith (Printf.sprintf "Unknown binary operator %s" op)  
+      
+      
+    let rec eval env ((st, i, o, r) as conf) expr =      
+      match expr with
+      | Const c -> (st, i, o, Some (Value.of_int c))
+      | Var v -> (st, i, o, Some (State.eval st v))
+      | Binop (op, x, y) ->
+        let (st, i, o, Some r1) = eval env conf x in
+        let (st, i, o, Some r2) = eval env (st, i, o, None) y in
+        (st, i, o, Some (Value.of_int @@ to_func op (Value.to_int r1) (Value.to_int r2)))
+      | Call (fun_name, fun_args) ->
+        let eval_args (conf, acc) arg =
+        let ((_, _, _, Some v) as new_conf) = eval env conf arg in
+            (new_conf, v::acc) in
+        let new_conf, arg_vals = List.fold_left eval_args (conf, []) fun_args in
+        env#definition env fun_name (List.rev arg_vals) new_conf
+      | Array e -> 
+        let (st, i, o, e) = eval_list env conf e in
+        (st, i, o, Some (Value.of_array e))
+      | String s -> (st, i, o, Some(Value.of_string s))
+      | Elem (e, ind) -> eval env conf (Call("$elem", [e; ind]))
+      | Length a ->  eval env conf (Call("$length", [a]))
+
+
     and eval_list env conf xs =
       let vs, (st, i, o, _) =
         List.fold_left
@@ -146,7 +193,38 @@ module Expr =
          DECIMAL --- a decimal constant [0-9]+ as a string                                                                                                                  
     *)
     ostap (                                      
-      parse: empty {failwith "Not implemented"}
+      parse: expr;
+      expr:
+        !(Ostap.Util.expr
+            (fun x -> x)
+            (Array.map (fun (a, s) -> a, 
+                           List.map  (fun s -> ostap(- $(s)), (fun x y -> Binop (s, x, y))) s
+                        ) 
+            [|
+              `Lefta, ["!!"];
+              `Lefta, ["&&"];
+              `Nona , [">="; ">"; "<="; "<"; "!="; "=="];
+              `Lefta, ["+"; "-"];
+              `Lefta, ["*"; "/"; "%"];
+            |]
+            )
+          base
+          );
+      base: ex: primary el: (-"[" !(parse) -"]")* length: (".length")?
+          {
+              let with_elems = List.fold_left (fun e ind -> Elem (e, ind)) ex el in
+              match length with
+                  | Some _ -> Length with_elems
+                  | _ -> with_elems
+          };
+      primary: n:DECIMAL {Const n}
+           | -"(" expr -")"
+           | name:IDENT
+              p:("(" args:!(Util.list0 parse) ")" {Call (name, args)}
+                 | empty {Var name}) {p}
+           | "[" el:!(Util.list0 parse) "]" { Array el }
+           | str:STRING {String (String.sub str 1 (String.length str - 2))}
+           | n:CHAR {Const (Char.code n)}
     )
     
   end
@@ -186,11 +264,74 @@ module Stmt =
       in
       State.update x (match is with [] -> v | _ -> update (State.eval st x) v is) st
           
-    let rec eval env ((st, i, o, r) as conf) k stmt = failwith "Not implemented"
+      let hd_tl l msg = match l with
+      | head::tail -> (head, tail)
+      | _ -> failwith(msg)
+      let meta x y = match x with
+      | Skip -> y
+      | _ -> match y with
+          | Skip -> x
+          | _ -> Seq (x, y)
+      let reverse_condition cond = Expr.Binop ("==", cond, Expr.Const 0)
+      let rec eval env ((s, i, o, _) as config) k p =
+      (*
+          Printf.printf "CURR - %s\n" (GT.transform(t) (new @t[show]) () p);
+          Printf.printf "KONT - %s\n\n" (GT.transform(t) (new @t[show]) () k);
+          *)
+      match p with
+      | Assign (name, ids, e) -> let ((s, i, o, Some r) as config) = Expr.eval env config e in
+                                 let (s, i, o, ids) = Expr.eval_list env config ids in
+                                    eval env (update s name r ids, i, o, Some r) Skip k
+      | Seq (e1, e2) -> eval env config (meta e2 k) e1
+      | Skip -> (match k with
+          | Skip -> config
+          | _ -> eval env config Skip k)
+      | If (cond, thn, els) -> let ((s, i, o, Some cond_value) as c) = Expr.eval env config cond in
+                               if Value.to_int cond_value <> 0 then
+                                   eval env c k thn
+                               else
+                                   eval env c k els
+      | While (cond, body) -> let ((s, i, o, Some cond_value) as c) = Expr.eval env config cond in
+                              if Value.to_int cond_value == 0 then eval env c Skip k
+                              else eval env c (meta p k) body
+      | Repeat (body, cond) -> eval env config (meta (While (reverse_condition cond, body)) k) body
+      | Call (name, args) -> eval env (Expr.eval env config (Expr.Call (name, args))) Skip k
+      | Return x -> (match x with
+          | Some x -> Expr.eval env config x
+          | _ -> config)
          
     (* Statement parser *)
     ostap (
-      parse: empty {failwith "Not implemented"}
+      stmt: x:IDENT ids: (-"[" !(Expr.parse) -"]")* ":=" e:!(Expr.parse) {Assign (x, ids, e)}
+           | "if" condition:!(Expr.parse)
+                "then" th:!(parse)
+                elif:(%"elif" !(Expr.parse) %"then" !(parse))*
+                els:(%"else" !(parse))?
+                "fi"
+                {
+                    let else_body = match els with
+                        | Some x -> x
+                        | _ -> Skip
+                    in
+                    let t = List.fold_right (fun (cond, body) curr -> If (cond, body, curr)) elif else_body in
+                    If (condition, th, t)
+                }
+            | "while" condition:!(Expr.parse) "do" body:!(parse) "od" { While (condition, body)}
+            | "for" init:!(parse) "," cond:!(Expr.parse) "," step:!(parse) "do" body:!(parse) "od"
+            {
+                Seq(init, While(cond, Seq(body, step)))
+            }
+            | "repeat" body:!(parse) "until" cond:!(Expr.parse)
+            { 
+                Repeat (body, cond)
+            }
+            | name:IDENT "(" args:!(Util.list0 Expr.parse) ")"
+            {
+                Call (name, args)
+            }
+            | "skip" {Skip}
+            | "return" expr:!(Expr.parse)? { Return expr };
+      parse: st1:stmt ";" st2:parse {Seq (st1, st2)} | stmt
     )
       
   end
