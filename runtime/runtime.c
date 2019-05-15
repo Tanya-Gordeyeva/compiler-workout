@@ -138,11 +138,9 @@ static void printValue (void *p) {
   }
 }
 
-extern void* Belem (void *p, int i) {
+extern void* Belem (int i, void *p) {
   data *a = TO_DATA(p);
   i = UNBOX(i);
-  
-  /* printf ("elem %d = %p\n", i, (void*) ((int*) a->contents)[i]); */
 
   if (TAG(a->tag) == STRING_TAG) {
     return (void*) BOX(a->contents[i]);
@@ -202,6 +200,7 @@ extern void* Bsexp (int n, ...) {
   d->tag = SEXP_TAG | (n-1);
   
   va_start(args, n);
+  r->tag = va_arg(args, int);
   
   for (i=0; i<n-1; i++) {
     int ai = va_arg(args, int);
@@ -218,17 +217,17 @@ extern void* Bsexp (int n, ...) {
   return d->contents;
 }
 
-extern int Btag (void *d, int t) {
+extern int Btag (int t, void *d) {
   data *r = TO_DATA(d);
   return BOX(TAG(r->tag) == SEXP_TAG && TO_SEXP(d)->tag == t);
 }
 		 
-extern void Bsta (int n, int v, void *s, ...) {
+extern void Bsta (int n, void *s, int v ...) {
   va_list args;
   int i, k;
   data *a;
   
-  va_start(args, s);
+  va_start(args, v);
 
   for (i=0; i<n-1; i++) {
     k = UNBOX(va_arg(args, int));
