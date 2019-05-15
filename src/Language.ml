@@ -120,13 +120,12 @@ module Builtin =
   struct
       
     let eval (st, i, o, _) args = function
-    | "read"     -> failwith "Not implemented yet"
+    (*| "read"     -> failwith "Not implemented yet"
     | "write"    -> failwith "Not implemented yet"
     | ".elem"    -> failwith "Not implemented yet"
     | ".length"     -> failwith "Not implemented yet"
     | ".array"      -> failwith "Not implemented yet"
-    | ".stringval"  -> failwith "Not implemented yet"
-
+    | ".stringval"  -> failwith "Not implemented yet"*)
     | "read"     -> (match i with z::i' -> (st, i', o, Some (Value.of_int z)) | _ -> failwith "Unexpected end of input")
     | "write"    -> (st, i, o @ [Value.to_int @@ List.hd args], None)
     | ".elem"    -> let [j; b] = args in
