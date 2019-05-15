@@ -194,15 +194,15 @@ extern void* Barray (int n, ...) {
 extern void* Bsexp (int n, ...) {
   va_list args;
   int i;
-  sexp *r = (sexp*) malloc (sizeof(int) * (n+2));
+  sexp *r = (sexp*) malloc (sizeof(int) * (n+3));
   data *d = &(r->contents);
 
-  d->tag = SEXP_TAG | (n-1);
+  d->tag = SEXP_TAG | (n);
   
   va_start(args, n);
   r->tag = va_arg(args, int);
   
-  for (i=0; i<n-1; i++) {
+  for (i=0; i<n; i++) {
     int ai = va_arg(args, int);
     //printf ("arg %d = %x\n", i, ai);
     ((int*)d->contents)[i] = ai; 
