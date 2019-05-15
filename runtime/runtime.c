@@ -208,7 +208,6 @@ extern void* Bsexp (int n, ...) {
     ((int*)d->contents)[i] = ai; 
   }
 
-  r->tag = va_arg(args, int);
   va_end(args);
 
   //printf ("tag %d\n", r->tag);
