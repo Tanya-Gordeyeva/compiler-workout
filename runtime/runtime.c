@@ -222,7 +222,7 @@ extern int Btag (int t, void *d) {
   return BOX(TAG(r->tag) == SEXP_TAG && TO_SEXP(d)->tag == t);
 }
 		 
-extern void Bsta (int n, void *s, int v ...) {
+extern void Bsta (int n, void *s, int v, ...) {
   va_list args;
   int i, k;
   data *a;
